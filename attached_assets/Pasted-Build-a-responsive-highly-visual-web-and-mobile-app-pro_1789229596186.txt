@@ -1,0 +1,56 @@
+Build a responsive, highly visual web and mobile app prototype for "Smart Waste Management Kathmandu" (Theme: TechForGood: Innovation for a Better Tomorrow).
+
+---
+
+### 🎨 Visual & UI Design System
+- Theme: Eco-friendly modern UI (emerald green primary #10B981, slate background #0F172A, warm white cards, amber notification badges #F59E0B).
+- Responsive Shell: Mobile-first layout with a sticky bottom navigation bar (Home, Marketplace, AI Scanner, Impact) on mobile, and a clean top navbar on desktop.
+- Perspective Switcher: A prominent header toggle to switch between "Household View" and "Informal Waste Picker View".
+
+---
+
+### 📊 Real-World Statistics & Local Context (Kathmandu)
+Include an interactive header banner with real city metrics:
+- 1,200+ Tons: Daily solid waste generated in Kathmandu Valley.
+- 92% Capacity: Current emergency load at Banchare Danda Landfill.
+- 15% Current Segregation: Only ~15% of households segregate waste at source.
+- 65% Recyclable/Organic: Up to 65% of daily waste could be diverted from landfills.
+
+---
+
+### 🚀 Key Features & Screens
+
+1. Municipal Alerts & Schedule (Household View):
+   - Card displaying today's ward pickup focus (e.g., "Ward 4: Dry Recyclables Collection Today at 7:00 AM").
+   - Interactive visual countdown timer to the next pickup.
+   - Weekly household segregation score progress bar (e.g., "75% Eco-Score").
+
+2. Recyclable Marketplace (Household View):
+   - Request form: Waste category (PET Plastics, Paper/Cardboard, Glass, Metal, E-Waste), estimated weight (kg), photo upload, and pickup address.
+   - Payout Estimator: Automatic price calculation based on local rates (e.g., PET = 20 NPR/kg, Cardboard = 12 NPR/kg).
+   - Order Status Pipeline (Pending -> Accepted -> Collected -> Paid).
+
+3. Informal Waste Collector Dashboard (Picker View):
+   - Geolocation Feed: Cards displaying nearby recyclable pickup requests with distance (e.g., "0.8 km away in Lazimpat").
+   - Actionable Pickup: "Accept Pickup Request" button with estimated income calculation in Nepalese Rupees (NPR).
+   - Collector Metrics: Daily earnings summary, kg collected, and CO2 offset badges.
+
+4. AI Waste Vision Detector (Core AI Feature):
+   - Dedicated "AI Scanner" tab with camera frame UI.
+   - Support both live image upload and sample test images (Plastic Bottle, Cardboard Box, Battery/E-Waste).
+   - Integration setup: Prepare the code structure to connect to free vision AI APIs (Google Gemini Flash API or Hugging Face MobileNet/ResNet model) via base64 image encoding.
+   - Interactive Scanning UI: Show a 2-second glowing laser scan animation when an image is selected.
+   - Output Result Card displaying:
+     * Classification Tag (e.g., "PET 1 Recyclable Plastic").
+     * Confidence Score (e.g., "96.4% Accuracy").
+     * Proper Action Guide ("Rinse & place in Dry Bin OR List on Marketplace for 20 NPR/kg").
+     * Environmental Impact Badge ("Saves ~1.5kg CO2").
+
+5. Educational Segregation Guide:
+   - Visual 3-color scheme guide: Green (Organic), Blue (Recyclable), Red (Hazardous/E-Waste) with quick do's and don'ts.
+
+---
+
+### 🛠️ Technical Implementation Requirements
+- Framework: React, Tailwind CSS, and Lucide React Icons.
+- Self-Contained Mock State: Store state cleanly using React hooks (useState) so that switching views, submitting marketplace requests, accepting pickups, and running the AI vision scanner function smoothly live without backend setup errors.
