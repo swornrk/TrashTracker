@@ -1,0 +1,42 @@
+Build a responsive, modern web and mobile-friendly web application for "Smart Waste Management Kathmandu" focused on waste pickup coordination, household segregation, and an informal recyclables marketplace. 
+
+Theme & Design:
+- Modern, clean, eco-friendly aesthetic (emerald green, slate grey, white background).
+- Mobile-first layout with a responsive bottom navigation bar on mobile and a top navbar on desktop.
+- Dual user perspectives: "Household User" and "Informal Waste Collector". Include a toggle at the top of the app to switch between views easily.
+
+Key Features & Screens to Implement:
+
+1. Dashboard & Municipal Schedule:
+   - Visual banner showing today's collection status for Kathmandu Valley (e.g., "Today: Dry / Recyclable Waste Pickup in Ward 4").
+   - A countdown timer to the next municipal pickup.
+   - Interactive schedule calendar detailing organic vs. inorganic collection days.
+
+2. Recyclables Marketplace (Household View):
+   - A simple form where households can list recyclables: select waste type (Plastics, Metals, Paper/Cardboard, Glass), estimated weight (kg), and pickup address/neighborhood.
+   - List of "Active Pickup Requests" showing status (Pending, Accepted, Completed).
+
+3. Collector Request Feed (Informal Waste Picker View):
+   - A geolocation-style feed displaying pending recyclable pickup requests nearby.
+   - Card view showing item type, estimated weight, household address, and potential payout estimate (NPR).
+   - "Accept Pickup" button that updates the request status in real-time.
+
+4. AI Trash Detection Prototype (Interactive Feature):
+   - Include a dedicated "AI Scanner" tab or modal.
+   - Allow users to upload an image of waste (or use web camera input).
+   - Mock/prototype AI Image Recognition logic: 
+     - Create a client-side classification simulator that analyzes uploaded images.
+     - When an image is uploaded, display a scanning animation with a 2-second delay.
+     - Return a simulated AI detection result card containing:
+       - Detected Item (e.g., "PET Plastic Bottle", "Cardboard Box", "Aluminum Can").
+       - Confidence Score (e.g., "94% Match").
+       - Segregation Recommendation (e.g., "Recyclable — Place in Dry Waste Bin or List on Marketplace").
+       - Estimated Recycling Value (e.g., "15-20 NPR/kg").
+
+5. Educational Waste Segregation Guide:
+   - Quick visual reference cards showing proper classification rules (Organic/Compostable, Recyclables, Hazardous/E-Waste) specific to urban Kathmandu waste management rules.
+
+Technical Requirements:
+- Use React with Tailwind CSS (or Lucide Icons for clean UI elements).
+- Keep state local using React state (useState/useContext) so the demo runs completely smoothly without needing an external database setup right away.
+- Ensure all interactive elements (buttons, modals, AI scanning flow, role toggle) are fully clickable and functional for a live demo.

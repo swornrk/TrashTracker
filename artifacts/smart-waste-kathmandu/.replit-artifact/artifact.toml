@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Smart Waste Kathmandu"
+description = "A responsive waste-management coordination app for Kathmandu households and informal waste collectors, with municipal schedules, recyclable pickup requests, an AI segregation scanner, and local educational guidance."
+version = "1.0.0"
+id = "artifacts/smart-waste-kathmandu"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21142
+
+[services.development]
+run = "pnpm --filter @workspace/smart-waste-kathmandu run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/smart-waste-kathmandu", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/smart-waste-kathmandu/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21142"
+BASE_PATH = "/"
