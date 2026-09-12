@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: waste-detection
+    description: AI-powered waste image classification
 paths:
   /healthz:
     get:
@@ -24,6 +26,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /waste-detection:
+    post:
+      operationId: detectWaste
+      tags: [waste-detection]
+      summary: Classify a waste image with Gemini
+      description: Analyzes one uploaded waste image and returns Kathmandu-specific sorting and value guidance.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WasteDetectionRequest"
+      responses:
+        "200":
+          description: Waste classification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WasteDetectionResponse"
+        "400":
+          description: Invalid image payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: AI service failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +66,45 @@ components:
           type: string
       required:
         - status
+    WasteDetectionRequest:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+          minLength: 1
+        mimeType:
+          type: string
+          minLength: 1
+      required:
+        - imageBase64
+        - mimeType
+    WasteDetectionResponse:
+      type: object
+      properties:
+        detectedItem:
+          type: string
+        category:
+          type: string
+          enum: [Organic, Recyclable, Hazardous]
+        confidencePercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        marketValueNpr:
+          type: string
+        segregationAdvice:
+          type: string
+      required:
+        - detectedItem
+        - category
+        - confidencePercent
+        - marketValueNpr
+        - segregationAdvice
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
 
