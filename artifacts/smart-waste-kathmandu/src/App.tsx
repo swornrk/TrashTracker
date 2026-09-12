@@ -1,5 +1,6 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useDetectWaste, type WasteDetectionResponse } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -192,7 +193,7 @@ function TopBar({ role, onRoleChange, onMenu }: { role: Role; onRoleChange: (rol
           <RoleButton active={role === 'collector'} icon={Truck} label="Collect" onClick={() => onRoleChange('collector')} />
         </div>
         <button data-testid="button-notifications" aria-label="Notifications" className="relative rounded-xl border border-border bg-card p-2.5 text-muted-foreground hover:border-primary hover:text-primary"><Bell size={18} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" /></button>
-        <div className="hidden items-center gap-2 sm:flex"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">AS</div><div className="leading-tight"><p className="text-xs font-semibold">Aarav Shrestha</p><p className="text-[10px] text-muted-foreground">Ward 4 · Lalitpur</p></div><ChevronDown size={15} className="text-muted-foreground" /></div>
+        <div className="hidden items-center gap-2 sm:flex"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">CM</div><div className="leading-tight"><p className="text-xs font-semibold">Community Member</p><p className="text-[10px] text-muted-foreground">Ward 4 · Lalitpur</p></div><ChevronDown size={15} className="text-muted-foreground" /></div>
       </div>
     </header>
   );
@@ -215,7 +216,7 @@ function PageHeading({ eyebrow, title, description, action }: { eyebrow: string;
 
 function HouseholdHome({ requests, onNavigate, onNotify }: { requests: Request[]; onNavigate: (page: Page) => void; onNotify: (message: string) => void }) {
   return <div className="rise-in">
-    <PageHeading eyebrow="Wednesday · 28 August 2024" title="Good morning, Aarav." description="A little sorting today keeps our shared streets healthier tomorrow." action={<button data-testid="button-new-pickup" onClick={() => onNavigate('marketplace')} className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-md shadow-primary/15 hover:-translate-y-0.5 hover:bg-primary/90"><Plus size={17} />List recyclables</button>} />
+    <PageHeading eyebrow="Wednesday · 28 August 2024" title="Good morning, neighbor." description="A little sorting today keeps our shared streets healthier tomorrow." action={<button data-testid="button-new-pickup" onClick={() => onNavigate('marketplace')} className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-md shadow-primary/15 hover:-translate-y-0.5 hover:bg-primary/90"><Plus size={17} />List recyclables</button>} />
     <div className="grid gap-4 lg:grid-cols-[1.3fr_.7fr]">
       <PickupHero onNotify={onNotify} />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
@@ -339,30 +340,85 @@ function RequestsPage({ requests, onUpdate, onNotify }: { requests: Request[]; o
   return <div className="rise-in"><PageHeading eyebrow="Your activity" title="Pickup requests." description="Track what is scheduled, on its way, and already part of the circular economy." action={<button data-testid="button-request-pickup" onClick={() => onNotify('Choose recyclable materials in Marketplace to create a request.')} className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90"><Plus size={17} />New request</button>} /><div className="mb-5 flex flex-wrap gap-2">{(['All', 'Pending', 'Accepted', 'Completed'] as const).map((item) => <button key={item} data-testid={`filter-requests-${item.toLowerCase()}`} onClick={() => setFilter(item)} className={`rounded-full px-3.5 py-2 text-xs font-bold ${filter === item ? 'bg-primary text-primary-foreground' : 'border border-border bg-card text-muted-foreground hover:text-primary'}`}>{item} {item !== 'All' && <span className="ml-1 opacity-60">{requests.filter((request) => request.status === item).length}</span>}</button>)}</div><section className="rounded-2xl border border-border bg-card shadow-sm"><div className="hidden grid-cols-[1.3fr_.8fr_.7fr_.6fr_auto] gap-4 border-b border-border px-6 py-4 font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground md:grid"><span>Material</span><span>Pickup time</span><span>Value</span><span>Status</span><span /></div>{filtered.map((request, index) => <div key={request.id} className={`rise-in delay-${Math.min(index + 1, 4)} flex flex-col gap-4 border-b border-border px-5 py-5 last:border-0 md:grid md:grid-cols-[1.3fr_.8fr_.7fr_.6fr_auto] md:items-center md:gap-4 md:px-6`} data-testid={`request-detail-${request.id}`}><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">{request.type === 'Organic' ? <Leaf size={18} /> : <Recycle size={18} />}</div><div><p className="font-bold">{request.item}</p><p className="text-xs text-muted-foreground">{request.type} · {request.weight}</p></div></div><p className="text-sm text-muted-foreground"><span className="mr-2 font-mono text-[10px] uppercase text-muted-foreground/70 md:hidden">Time</span>{request.date}</p><p className="text-sm font-bold text-primary"><span className="mr-2 font-mono text-[10px] uppercase text-muted-foreground/70 md:hidden">Value</span>{request.payout}</p><div><StatusBadge status={request.status} /></div><div className="flex gap-2 md:justify-end">{request.status === 'Pending' && <button data-testid={`button-cancel-request-${request.id}`} onClick={() => { onUpdate(request.id, 'Completed'); onNotify('Request marked as cancelled.'); }} className="rounded-lg border border-border p-2 text-muted-foreground hover:border-destructive hover:text-destructive"><Trash2 size={15} /></button>}{request.status === 'Accepted' && <button data-testid={`button-complete-request-${request.id}`} onClick={() => { onUpdate(request.id, 'Completed'); onNotify('Pickup marked complete. Nice work.'); }} className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/15"><Check size={14} />Complete</button>}<button data-testid={`button-edit-request-${request.id}`} onClick={() => onNotify('Pickup details are locked while a collector is assigned.')} className="rounded-lg border border-border p-2 text-muted-foreground hover:border-primary hover:text-primary"><PencilLine size={15} /></button></div></div>)}{filtered.length === 0 && <EmptyState icon={ClipboardList} title="No requests here" description="Try another filter or list some recyclables to get started." />}</section></div>;
 }
 
-function ScannerPage({ onNotify }: { onNotify: (message: string) => void }) {
-  const [state, setState] = useState<'idle' | 'scanning' | 'result'>('idle');
-  const [fileName, setFileName] = useState('');
-  const timerRef = useRef<number | null>(null);
-  useEffect(() => () => { if (timerRef.current) window.clearTimeout(timerRef.current); }, []);
-  const startScan = (name: string) => {
-    setFileName(name);
-    setState('scanning');
-    if (timerRef.current) window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(() => setState('result'), 2100);
-  };
-  const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) startScan(file.name);
-  };
-  return <div className="rise-in"><PageHeading eyebrow="Know before you throw" title="AI waste scanner." description="Not sure which bin? Take a photo and get a practical recommendation in seconds." action={<div className="flex items-center gap-2 rounded-full bg-secondary/20 px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-wider text-primary"><Sparkles size={14} />Runs on your device</div>} /><div className="grid gap-5 xl:grid-cols-[1fr_.72fr]"><section className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-8"><div className="mb-8 flex items-center justify-between"><div><p className="font-mono text-[10px] font-bold uppercase tracking-widest text-primary">One item at a time</p><h2 className="mt-1 text-xl font-bold">{state === 'idle' ? 'Show us the item.' : state === 'scanning' ? 'Reading the material…' : 'Here is what we found.'}</h2></div><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><ScanLine size={20} /></div></div>{state === 'idle' && <div className="rounded-2xl border-2 border-dashed border-border bg-background/50 px-5 py-12 text-center sm:px-10"><div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary/25 text-primary"><Camera size={28} /></div><h3 className="font-bold">Upload or take a photo</h3><p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">A clear photo of one item works best. We never send your image anywhere.</p><div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row"><label data-testid="label-upload-image" className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90"><Upload size={16} />Upload image<input data-testid="input-upload-image" type="file" accept="image/*" onChange={handleFile} className="sr-only" /></label><label data-testid="label-camera-image" className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-bold hover:border-primary hover:text-primary"><Camera size={16} />Use camera<input data-testid="input-camera-image" type="file" accept="image/*" capture="environment" onChange={handleFile} className="sr-only" /></label></div></div>}{state === 'scanning' && <div className="flex min-h-[300px] flex-col items-center justify-center rounded-2xl bg-primary p-8 text-center text-primary-foreground"><div className="relative flex h-32 w-32 items-center justify-center rounded-2xl border border-primary-foreground/30"><div className="absolute inset-4 rounded-xl border border-secondary/40 pulse-ring" /><ScanLine size={43} className="text-secondary" /><div className="scan-line absolute inset-x-3 top-1/2 h-0.5 bg-secondary shadow-[0_0_16px_hsl(var(--secondary))]" /></div><p className="mt-7 font-bold">Checking material signals</p><p className="mt-1 text-xs text-primary-foreground/60">{fileName || 'Your image'} · local scan</p><div className="mt-5 flex items-center gap-1.5">{[1, 2, 3].map((dot) => <i key={dot} className="h-1.5 w-1.5 rounded-full bg-secondary" style={{ opacity: dot === 2 ? .55 : 1 }} />)}</div></div>}{state === 'result' && <ScannerResult fileName={fileName} onReset={() => { setState('idle'); setFileName(''); }} onNotify={onNotify} />}</section><ScannerInfo /></div></div>;
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const commaIndex = result.indexOf(',');
+      resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
+    };
+    reader.onerror = () => reject(new Error('Could not read that image.'));
+    reader.readAsDataURL(file);
+  });
 }
 
-function ScannerResult({ fileName, onReset, onNotify }: { fileName: string; onReset: () => void; onNotify: (message: string) => void }) {
-  return <div className="rounded-2xl border border-primary/20 bg-primary/[.04] p-5 sm:p-6"><div className="flex items-start justify-between"><div><div className="flex items-center gap-2 text-primary"><CheckCircle2 size={18} /><span className="font-mono text-[10px] font-bold uppercase tracking-widest">Scan complete</span></div><h3 className="mt-4 text-2xl font-bold tracking-[-.04em]">PET bottle</h3><p className="mt-1 text-sm text-muted-foreground">{fileName || 'Uploaded image'} · analyzed locally</p></div><span className="rounded-full bg-secondary/30 px-2.5 py-1 font-mono text-xs font-bold text-primary">94% match</span></div><div className="mt-6 grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-border bg-card p-4"><p className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Recommendation</p><p className="mt-2 flex items-center gap-2 font-bold text-primary"><Recycle size={17} />Recyclable</p><p className="mt-1 text-xs text-muted-foreground">Rinse, dry, and flatten before collection.</p></div><div className="rounded-xl border border-border bg-card p-4"><p className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Estimated value</p><p className="mt-2 flex items-center gap-2 font-bold"><Coins size={17} className="text-secondary" />NPR 35 / kg</p><p className="mt-1 text-xs text-muted-foreground">Based on today’s neighborhood rate.</p></div></div><div className="mt-5 flex flex-col gap-3 sm:flex-row"><button data-testid="button-list-scanned-item" onClick={() => onNotify('Opening a new listing for PET bottles.')} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90"><ShoppingBag size={16} />List this material</button><button data-testid="button-reset-scanner" onClick={onReset} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-bold hover:border-primary hover:text-primary"><ScanLine size={16} />Scan another</button></div></div>;
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function ScannerPage({ onNotify }: { onNotify: (message: string) => void }) {
+  const [state, setState] = useState<'idle' | 'scanning' | 'result' | 'error'>('idle');
+  const [fileName, setFileName] = useState('');
+  const [scanError, setScanError] = useState('');
+  const [result, setResult] = useState<WasteDetectionResponse | null>(null);
+  const detectWaste = useDetectWaste();
+
+  const startScan = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setScanError('Please choose an image file.');
+      setState('error');
+      return;
+    }
+    if (file.size > 7 * 1024 * 1024) {
+      setScanError('Please choose an image smaller than 7 MB.');
+      setState('error');
+      return;
+    }
+
+    setFileName(file.name);
+    setScanError('');
+    setResult(null);
+    setState('scanning');
+
+    try {
+      const imageBase64 = await readFileAsBase64(file);
+      const [detected] = await Promise.all([
+        detectWaste.mutateAsync({ data: { imageBase64, mimeType: file.type } }),
+        wait(1600),
+      ]);
+      setResult(detected);
+      setState('result');
+    } catch (error) {
+      setScanError(error instanceof Error ? error.message : 'Gemini could not analyze this image. Please try a clearer photo.');
+      setState('error');
+    }
+  };
+
+  const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) void startScan(file);
+  };
+
+  const reset = () => {
+    setState('idle');
+    setFileName('');
+    setScanError('');
+    setResult(null);
+  };
+
+  return <div className="rise-in"><PageHeading eyebrow="Know before you throw" title="AI waste scanner." description="Not sure which bin? Take a photo and Gemini will give you a Kathmandu-specific sorting recommendation." action={<div className="flex items-center gap-2 rounded-full bg-secondary/20 px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-wider text-primary"><Sparkles size={14} />Gemini Flash</div>} /><div className="grid gap-5 xl:grid-cols-[1fr_.72fr]"><section className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-8"><div className="mb-8 flex items-center justify-between"><div><p className="font-mono text-[10px] font-bold uppercase tracking-widest text-primary">One item at a time</p><h2 className="mt-1 text-xl font-bold">{state === 'idle' ? 'Show us the item.' : state === 'scanning' ? 'Reading the material…' : state === 'error' ? 'We could not finish the scan.' : 'Here is what Gemini found.'}</h2></div><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><ScanLine size={20} /></div></div>{state === 'idle' && <div className="rounded-2xl border-2 border-dashed border-border bg-background/50 px-5 py-12 text-center sm:px-10"><div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary/25 text-primary"><Camera size={28} /></div><h3 className="font-bold">Upload or take a photo</h3><p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">A clear photo of one item works best. Your image is sent securely to Gemini for analysis and is not stored by this app.</p><div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row"><label data-testid="label-upload-image" className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90"><Upload size={16} />Upload image<input data-testid="input-upload-image" type="file" accept="image/*" onChange={handleFile} className="sr-only" /></label><label data-testid="label-camera-image" className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-bold hover:border-primary hover:text-primary"><Camera size={16} />Use camera<input data-testid="input-camera-image" type="file" accept="image/*" capture="environment" onChange={handleFile} className="sr-only" /></label></div></div>}{state === 'scanning' && <div className="flex min-h-[300px] flex-col items-center justify-center rounded-2xl bg-primary p-8 text-center text-primary-foreground"><div className="relative flex h-32 w-32 items-center justify-center rounded-2xl border border-primary-foreground/30"><div className="absolute inset-4 rounded-xl border border-secondary/40 pulse-ring" /><ScanLine size={43} className="text-secondary" /><div className="scan-line absolute inset-x-3 top-1/2 h-0.5 bg-secondary shadow-[0_0_16px_hsl(var(--secondary))]" /></div><p className="mt-7 font-bold">Gemini is checking the material</p><p className="mt-1 text-xs text-primary-foreground/60">{fileName || 'Your image'} · secure image analysis</p><div className="mt-5 flex items-center gap-1.5">{[1, 2, 3].map((dot) => <i key={dot} className="h-1.5 w-1.5 rounded-full bg-secondary" style={{ opacity: dot === 2 ? .55 : 1 }} />)}</div></div>}{state === 'error' && <div className="flex min-h-[300px] flex-col items-center justify-center rounded-2xl border border-accent/30 bg-accent/5 p-8 text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-accent"><X size={25} /></div><h3 className="mt-5 font-bold">Scan unavailable</h3><p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">{scanError}</p><button data-testid="button-retry-scan" onClick={reset} className="mt-6 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90">Try another image</button></div>}{state === 'result' && result && <ScannerResult fileName={fileName} result={result} onReset={reset} onNotify={onNotify} />}</section><ScannerInfo /></div></div>;
+}
+
+function ScannerResult({ fileName, result, onReset, onNotify }: { fileName: string; result: WasteDetectionResponse; onReset: () => void; onNotify: (message: string) => void }) {
+  const CategoryIcon = result.category === 'Organic' ? Leaf : result.category === 'Hazardous' ? ShieldCheck : Recycle;
+  const categoryStyle = result.category === 'Organic' ? 'bg-secondary/20 text-primary' : result.category === 'Hazardous' ? 'bg-accent/10 text-accent' : 'bg-primary/10 text-primary';
+  return <div className="rounded-2xl border border-primary/20 bg-primary/[.04] p-5 sm:p-6"><div className="flex items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-primary"><CheckCircle2 size={18} /><span className="font-mono text-[10px] font-bold uppercase tracking-widest">Gemini scan complete</span></div><h3 className="mt-4 text-2xl font-bold tracking-[-.04em]">{result.detectedItem}</h3><p className="mt-1 text-sm text-muted-foreground">{fileName || 'Uploaded image'} · not stored by this app</p></div><span className="shrink-0 rounded-full bg-secondary/30 px-2.5 py-1 font-mono text-xs font-bold text-primary">{Math.round(result.confidencePercent)}% match</span></div><div className="mt-6 grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-border bg-card p-4"><p className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Waste category</p><p className={`mt-2 inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-sm font-bold ${categoryStyle}`}><CategoryIcon size={16} />{result.category}</p><p className="mt-2 text-xs leading-relaxed text-muted-foreground">{result.segregationAdvice}</p></div><div className="rounded-xl border border-border bg-card p-4"><p className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Kathmandu market value</p><p className="mt-2 flex items-center gap-2 font-bold"><Coins size={17} className="text-secondary" />{result.marketValueNpr}</p><p className="mt-2 text-xs text-muted-foreground">An estimate only; rates vary by material quality and collector.</p></div></div><div className="mt-5 rounded-xl border border-border bg-card p-4"><p className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Segregation advice</p><p className="mt-2 text-sm leading-relaxed">{result.segregationAdvice}</p></div><div className="mt-5 flex flex-col gap-3 sm:flex-row"><button data-testid="button-list-scanned-item" onClick={() => onNotify(`Opening a new listing for ${result.detectedItem.toLowerCase()}.`)} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/90"><ShoppingBag size={16} />List this material</button><button data-testid="button-reset-scanner" onClick={onReset} className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-bold hover:border-primary hover:text-primary"><ScanLine size={16} />Scan another</button></div></div>;
 }
 
 function ScannerInfo() {
-  return <aside className="space-y-5"><div className="rounded-2xl bg-[#e6d9bc] p-6 text-primary"><div className="mb-10 flex items-center justify-between"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-secondary"><ShieldCheck size={19} /></div><span className="font-mono text-[10px] font-bold uppercase tracking-widest text-primary/55">Private by default</span></div><h2 className="text-2xl font-bold leading-tight tracking-[-.04em]">A helpful guess,<br />not a final word.</h2><p className="mt-4 text-sm leading-relaxed text-primary/70">The scanner is a guide for everyday items. When in doubt, keep hazardous or medical waste separate and ask your ward office.</p></div><div className="rounded-2xl border border-border bg-card p-5 shadow-sm"><p className="mb-4 font-mono text-[10px] font-bold uppercase tracking-widest text-primary">How it works</p><div className="space-y-4">{[{ icon: Camera, title: 'Take one clear photo' }, { icon: ScanLine, title: 'Local scan checks the shape' }, { icon: Recycle, title: 'Get a sorting suggestion' }].map((item, index) => <div className="flex items-center gap-3" key={item.title}><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-primary"><item.icon size={15} /></div><div className="flex-1 text-sm font-semibold">{item.title}</div><span className="font-mono text-[10px] text-muted-foreground">0{index + 1}</span></div>)}</div></div></aside>;
+  return <aside className="space-y-5"><div className="rounded-2xl bg-[#e6d9bc] p-6 text-primary"><div className="mb-10 flex items-center justify-between"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-secondary"><ShieldCheck size={19} /></div><span className="font-mono text-[10px] font-bold uppercase tracking-widest text-primary/55">No image storage</span></div><h2 className="text-2xl font-bold leading-tight tracking-[-.04em]">A helpful guess,<br />not a final word.</h2><p className="mt-4 text-sm leading-relaxed text-primary/70">Gemini helps identify everyday items. When in doubt, keep hazardous or medical waste separate and ask your ward office.</p></div><div className="rounded-2xl border border-border bg-card p-5 shadow-sm"><p className="mb-4 font-mono text-[10px] font-bold uppercase tracking-widest text-primary">How it works</p><div className="space-y-4">{[{ icon: Camera, title: 'Take one clear photo' }, { icon: Sparkles, title: 'Gemini analyzes the material' }, { icon: Recycle, title: 'Get a sorting suggestion' }].map((item, index) => <div className="flex items-center gap-3" key={item.title}><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-primary"><item.icon size={15} /></div><div className="flex-1 text-sm font-semibold">{item.title}</div><span className="font-mono text-[10px] text-muted-foreground">0{index + 1}</span></div>)}</div></div></aside>;
 }
 
 function EmptyState({ icon: Icon, title, description }: { icon: typeof ClipboardList; title: string; description: string }) {
