@@ -89,6 +89,13 @@ router.post("/waste-detection", async (req, res) => {
       return;
     }
 
+    if (providerStatus === 503) {
+      res.status(503).json({
+        error: "Gemini is temporarily busy. Please try the scan again in a moment.",
+      });
+      return;
+    }
+
     res.status(502).json({
       error: "Gemini could not analyze this image. Please try a clearer photo.",
     });

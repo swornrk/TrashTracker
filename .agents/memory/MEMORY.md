@@ -1,0 +1,1 @@
+- [Gemini model availability](gemini-model-availability.md) — verify the configured Google model against the project’s current API access before changing scanner behavior.
