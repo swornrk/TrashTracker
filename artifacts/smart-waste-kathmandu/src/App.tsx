@@ -22,7 +22,6 @@ import {
   Leaf,
   ListFilter,
   MapPin,
-  Menu,
   Package,
   PencilLine,
   Plus,
@@ -66,10 +65,10 @@ const initialRequests: Request[] = [
 ];
 
 const initialCollectorPickups: CollectorPickup[] = [
-  { id: 11, item: 'PET bottles & cans', type: 'Recyclable', weight: '4.5 kg', neighborhood: 'Bafal, Ward 13', date: 'Ready now', status: 'Pending', payout: 'NPR 160' },
-  { id: 12, item: 'Mixed cardboard', type: 'Recyclable', weight: '7 kg', neighborhood: 'Jawalakhel, Ward 4', date: 'Ready now', status: 'Pending', payout: 'NPR 245' },
-  { id: 13, item: 'Glass bottles', type: 'Recyclable', weight: '3 kg', neighborhood: 'Kapan, Ward 11', date: 'Ready in 35 min', status: 'Pending', payout: 'NPR 105' },
-  { id: 14, item: 'Sorted metal pieces', type: 'Recyclable', weight: '2.5 kg', neighborhood: 'Dillibazar, Ward 30', date: 'Ready in 1 hr', status: 'Pending', payout: 'NPR 90' },
+  { id: 11, item: 'PET bottles & cans', type: 'Recyclable', weight: '4.5 kg', neighborhood: 'Nearby neighborhood', date: 'Ready now', status: 'Pending', payout: 'NPR 160' },
+  { id: 12, item: 'Mixed cardboard', type: 'Recyclable', weight: '7 kg', neighborhood: 'Nearby neighborhood', date: 'Ready now', status: 'Pending', payout: 'NPR 245' },
+  { id: 13, item: 'Glass bottles', type: 'Recyclable', weight: '3 kg', neighborhood: 'Nearby neighborhood', date: 'Ready in 35 min', status: 'Pending', payout: 'NPR 105' },
+  { id: 14, item: 'Sorted metal pieces', type: 'Recyclable', weight: '2.5 kg', neighborhood: 'Nearby neighborhood', date: 'Ready in 1 hr', status: 'Pending', payout: 'NPR 90' },
 ];
 
 const navItems: Array<{ id: Page; label: string; icon: typeof Home }> = [
@@ -86,7 +85,6 @@ function App() {
   const [requests, setRequests] = useState<Request[]>(initialRequests);
   const [collectorPickups, setCollectorPickups] = useState<CollectorPickup[]>(initialCollectorPickups);
   const [toast, setToast] = useState<string | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!toast) return;
@@ -98,12 +96,10 @@ function App() {
   const handleRoleChange = (nextRole: Role) => {
     setRole(nextRole);
     setPage('home');
-    setMobileMenuOpen(false);
     notify(nextRole === 'collector' ? 'Collector view is ready nearby.' : 'Welcome back to your household view.');
   };
   const handleNav = (nextPage: Page) => {
     setPage(nextPage);
-    setMobileMenuOpen(false);
   };
 
   return (
@@ -113,18 +109,7 @@ function App() {
           <div className="grain app-shell min-h-[100dvh] text-foreground">
             <DesktopSidebar page={page} role={role} onNavigate={handleNav} onRoleChange={handleRoleChange} />
             <div className="min-h-[100dvh] lg:pl-[252px]">
-              <TopBar role={role} onRoleChange={handleRoleChange} onMenu={() => setMobileMenuOpen((open) => !open)} />
-              {mobileMenuOpen && (
-                <div className="absolute inset-x-0 top-[73px] z-40 border-b border-border bg-card p-4 shadow-lg lg:hidden">
-                  <div className="grid gap-1">
-                    {navItems.map((item) => (
-                      <button key={item.id} data-testid={`mobile-nav-${item.id}`} onClick={() => handleNav(item.id)} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold ${page === item.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>
-                        <item.icon size={18} /> {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <TopBar role={role} onRoleChange={handleRoleChange} />
               <main className="mx-auto max-w-[1450px] px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-12 lg:pt-8">
                 {page === 'home' && role === 'household' && <HouseholdHome requests={requests} onNavigate={handleNav} onNotify={notify} />}
                 {page === 'home' && role === 'collector' && <CollectorHome pickups={collectorPickups} onAccept={(id) => {
@@ -152,7 +137,7 @@ function DesktopSidebar({ page, role, onNavigate, onRoleChange }: { page: Page; 
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[252px] flex-col bg-sidebar px-4 py-5 text-sidebar-foreground lg:flex">
       <div className="mb-9 flex items-center gap-3 px-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-secondary text-primary"><Recycle size={22} strokeWidth={2.4} /></div>
-        <div><p className="font-mono text-[10px] font-bold uppercase tracking-[.18em] text-secondary">SWK / 24</p><p className="font-semibold leading-tight">Smart Waste<br />Kathmandu</p></div>
+        <div><p className="font-mono text-[10px] font-bold uppercase tracking-[.18em] text-secondary">TT / 24</p><p className="font-semibold leading-tight">Trash<br />Tracker</p></div>
       </div>
       <div className="mb-5 rounded-2xl border border-sidebar-border bg-sidebar-accent p-1.5">
         <div className="grid grid-cols-2 gap-1">
@@ -170,8 +155,8 @@ function DesktopSidebar({ page, role, onNavigate, onRoleChange }: { page: Page; 
         ))}
       </nav>
       <div className="mt-auto rounded-2xl border border-sidebar-border bg-sidebar-accent p-4">
-        <div className="mb-3 flex items-center gap-2 text-secondary"><ShieldCheck size={17} /><span className="font-semibold">Ward 4 community</span></div>
-        <p className="text-xs leading-relaxed text-sidebar-foreground/60">Every sorted kilo keeps Kathmandu cleaner and supports local collectors.</p>
+         <div className="mb-3 flex items-center gap-2 text-secondary"><ShieldCheck size={17} /><span className="font-semibold">Local community</span></div>
+         <p className="text-xs leading-relaxed text-sidebar-foreground/60">Every sorted kilo keeps the neighborhood cleaner and supports local collectors.</p>
         <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-sidebar-foreground/10"><div className="h-full w-[72%] rounded-full bg-secondary" /></div>
         <p className="mt-2 flex justify-between font-mono text-[10px] text-sidebar-foreground/45"><span>MONTHLY GOAL</span><span>72%</span></p>
       </div>
@@ -179,13 +164,12 @@ function DesktopSidebar({ page, role, onNavigate, onRoleChange }: { page: Page; 
   );
 }
 
-function TopBar({ role, onRoleChange, onMenu }: { role: Role; onRoleChange: (role: Role) => void; onMenu: () => void }) {
+function TopBar({ role, onRoleChange }: { role: Role; onRoleChange: (role: Role) => void }) {
   return (
     <header className="sticky top-0 z-20 flex h-[73px] items-center justify-between border-b border-border/80 bg-background/90 px-4 backdrop-blur-md sm:px-6 lg:px-10">
       <div className="flex items-center gap-3">
-        <button data-testid="button-mobile-menu" onClick={onMenu} className="rounded-lg p-2 text-muted-foreground hover:bg-muted lg:hidden"><Menu size={21} /></button>
-        <div className="lg:hidden"><p className="font-mono text-[9px] font-bold uppercase tracking-[.16em] text-primary">SWK / 24</p><p className="font-semibold leading-none">Smart Waste</p></div>
-        <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex"><MapPin size={16} className="text-accent" /><span>Kathmandu Valley</span><span className="text-border">/</span><span className="font-medium capitalize text-foreground">{role} workspace</span></div>
+         <div className="lg:hidden"><p className="font-mono text-[9px] font-bold uppercase tracking-[.16em] text-primary">TT / 24</p><p className="font-semibold leading-none">Trash Tracker</p></div>
+         <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex"><MapPin size={16} className="text-accent" /><span>Your local area</span><span className="text-border">/</span><span className="font-medium capitalize text-foreground">{role} workspace</span></div>
       </div>
       <div className="flex items-center gap-2 sm:gap-4">
         <div className="hidden rounded-xl border border-border bg-card p-1 sm:flex">
@@ -193,7 +177,7 @@ function TopBar({ role, onRoleChange, onMenu }: { role: Role; onRoleChange: (rol
           <RoleButton active={role === 'collector'} icon={Truck} label="Collect" onClick={() => onRoleChange('collector')} />
         </div>
         <button data-testid="button-notifications" aria-label="Notifications" className="relative rounded-xl border border-border bg-card p-2.5 text-muted-foreground hover:border-primary hover:text-primary"><Bell size={18} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" /></button>
-        <div className="hidden items-center gap-2 sm:flex"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">CM</div><div className="leading-tight"><p className="text-xs font-semibold">Community Member</p><p className="text-[10px] text-muted-foreground">Ward 4 · Lalitpur</p></div><ChevronDown size={15} className="text-muted-foreground" /></div>
+         <div className="hidden items-center gap-2 sm:flex"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">CM</div><div className="leading-tight"><p className="text-xs font-semibold">Community Member</p><p className="text-[10px] text-muted-foreground">Your local area</p></div></div>
       </div>
     </header>
   );
@@ -204,7 +188,7 @@ function RoleButton({ active, icon: Icon, label, onClick, dark = false }: { acti
 }
 
 function MobileNav({ page, onNavigate }: { page: Page; onNavigate: (page: Page) => void }) {
-  const items = navItems.filter((item) => item.id !== 'marketplace');
+  const items = navItems;
   return <nav className="fixed inset-x-3 bottom-3 z-30 flex justify-around rounded-2xl border border-border bg-card/95 p-1.5 shadow-xl backdrop-blur-md lg:hidden">
     {items.map((item) => <button key={item.id} data-testid={`bottom-nav-${item.id}`} onClick={() => onNavigate(item.id)} className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold ${page === item.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}><item.icon size={17} /><span>{item.id === 'home' ? 'Home' : item.label.replace('My ', '')}</span></button>)}
   </nav>;
@@ -234,12 +218,28 @@ function HouseholdHome({ requests, onNavigate, onNotify }: { requests: Request[]
 
 function PickupHero({ onNotify }: { onNotify: (message: string) => void }) {
   const [reminded, setReminded] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const nextPickup = new Date(now);
+  nextPickup.setHours(16, 30, 0, 0);
+  if (nextPickup <= now) nextPickup.setDate(nextPickup.getDate() + 1);
+  const secondsUntilPickup = Math.max(0, Math.floor((nextPickup.getTime() - now.getTime()) / 1000));
+  const hoursUntilPickup = Math.floor(secondsUntilPickup / 3600).toString().padStart(2, '0');
+  const minutesUntilPickup = Math.floor((secondsUntilPickup % 3600) / 60).toString().padStart(2, '0');
+  const secondsDisplay = (secondsUntilPickup % 60).toString().padStart(2, '0');
+  const pickupDay = new Intl.DateTimeFormat('en', { weekday: 'short' }).format(nextPickup);
+
   return <section className="relative overflow-hidden rounded-2xl bg-primary p-6 text-primary-foreground shadow-lg shadow-primary/10 sm:p-8">
     <div className="absolute -right-14 -top-16 h-48 w-48 rounded-full border-[24px] border-secondary/15" /><div className="absolute -bottom-20 right-20 h-48 w-48 rounded-full border-[1px] border-primary-foreground/10" />
     <div className="relative">
       <div className="mb-9 flex items-start justify-between"><div><p className="mb-2 flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[.17em] text-secondary"><span className="h-2 w-2 rounded-full bg-secondary" />Municipal collection</p><h2 className="max-w-sm text-2xl font-bold tracking-[-.04em] sm:text-3xl">Recyclables are up next.</h2></div><Truck size={33} className="text-secondary/80" /></div>
-      <div className="flex flex-wrap items-end justify-between gap-5"><div><p className="font-mono text-[11px] uppercase tracking-wider text-primary-foreground/55">Next pickup in</p><div className="mt-1 flex items-baseline gap-2"><span className="font-mono text-4xl font-bold tracking-[-.08em]">01:42:18</span><span className="text-sm text-primary-foreground/55">hrs</span></div></div><div className="text-left sm:text-right"><p className="font-mono text-[11px] uppercase tracking-wider text-primary-foreground/55">Today · 4:30–6:00 PM</p><p className="mt-1 text-sm font-semibold">Leave sorted bags outside</p></div></div>
-      <div className="mt-7 flex flex-col gap-3 border-t border-primary-foreground/15 pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="flex items-center gap-2 text-xs text-primary-foreground/70"><MapPin size={14} />Lalitpur Metropolitan · Ward 4</p><button data-testid="button-pickup-reminder" onClick={() => { setReminded(true); onNotify('Pickup reminder set for 4:00 PM.'); }} className="flex items-center justify-center gap-2 rounded-lg bg-primary-foreground/10 px-3 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary-foreground/20">{reminded ? <Check size={14} /> : <Bell size={14} />}{reminded ? 'Reminder set' : 'Set a reminder'}</button></div>
+       <div className="flex flex-wrap items-end justify-between gap-5"><div><p className="font-mono text-[11px] uppercase tracking-wider text-primary-foreground/55">Next pickup in</p><div className="mt-1 flex items-baseline gap-2"><span className="font-mono text-4xl font-bold tracking-[-.08em]">{hoursUntilPickup}:{minutesUntilPickup}:{secondsDisplay}</span><span className="text-sm text-primary-foreground/55">hrs</span></div></div><div className="text-left sm:text-right"><p className="font-mono text-[11px] uppercase tracking-wider text-primary-foreground/55">{pickupDay} · 4:30–6:00 PM</p><p className="mt-1 text-sm font-semibold">Leave sorted bags outside</p></div></div>
+       <div className="mt-7 flex flex-col gap-3 border-t border-primary-foreground/15 pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="flex items-center gap-2 text-xs text-primary-foreground/70"><MapPin size={14} />Local municipal collection zone</p><button data-testid="button-pickup-reminder" onClick={() => { setReminded(true); onNotify('Pickup reminder set for 4:00 PM.'); }} className="flex items-center justify-center gap-2 rounded-lg bg-primary-foreground/10 px-3 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary-foreground/20">{reminded ? <Check size={14} /> : <Bell size={14} />}{reminded ? 'Reminder set' : 'Set a reminder'}</button></div>
     </div>
   </section>;
 }
@@ -299,7 +299,7 @@ function SchedulePage({ onNotify }: { onNotify: (message: string) => void }) {
   const months = ['August', 'September'];
   const dates = Array.from({ length: month === 8 ? 31 : 30 }, (_, index) => index + 1);
   const isRecycle = (date: number) => date % 2 === 0;
-  return <div className="rise-in"><PageHeading eyebrow="Plan ahead" title="Your collection schedule." description="A simple rhythm for Ward 4. Put bags out by 7:00 AM on your pickup day." action={<button data-testid="button-calendar-sync" onClick={() => onNotify('Calendar link copied. Add it to your preferred calendar app.')} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-bold hover:border-primary hover:text-primary"><CalendarDays size={16} />Add to calendar</button>} /><div className="grid gap-5 xl:grid-cols-[1fr_.7fr]"><section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7"><div className="mb-6 flex items-center justify-between"><button data-testid="button-schedule-prev" onClick={() => setMonth((value) => value === 8 ? 9 : 8)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><ChevronLeft size={18} /></button><h2 className="font-bold">{months[month === 8 ? 0 : 1]} 2024</h2><button data-testid="button-schedule-next" onClick={() => setMonth((value) => value === 8 ? 9 : 8)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><ChevronRight size={18} /></button></div><div className="mb-3 grid grid-cols-7 text-center font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day} className="py-2">{day.slice(0, 3)}</span>)}</div><div className="grid grid-cols-7 gap-1.5">{Array.from({ length: month === 8 ? 4 : 0 }).map((_, index) => <span key={`blank-${index}`} />)}{dates.map((date) => <button key={date} data-testid={`calendar-date-${date}`} onClick={() => setSelected(date)} className={`relative flex aspect-square flex-col items-center justify-center rounded-xl text-sm font-semibold ${selected === date ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}><span>{date}</span><span className={`absolute bottom-2 h-1.5 w-1.5 rounded-full ${isRecycle(date) ? 'bg-accent' : 'bg-secondary'} ${selected === date ? 'opacity-90' : ''}`} /></button>)}</div></section><ScheduleLegend selected={selected} isRecycle={isRecycle} onNotify={onNotify} /></div></div>;
+  return <div className="rise-in"><PageHeading eyebrow="Plan ahead" title="Your collection schedule." description="A simple rhythm for your local area. Put bags out by 7:00 AM on your pickup day." action={<button data-testid="button-calendar-sync" onClick={() => onNotify('Calendar link copied. Add it to your preferred calendar app.')} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-bold hover:border-primary hover:text-primary"><CalendarDays size={16} />Add to calendar</button>} /><div className="grid gap-5 xl:grid-cols-[1fr_.7fr]"><section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7"><div className="mb-6 flex items-center justify-between"><button data-testid="button-schedule-prev" onClick={() => setMonth((value) => value === 8 ? 9 : 8)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><ChevronLeft size={18} /></button><h2 className="font-bold">{months[month === 8 ? 0 : 1]} 2024</h2><button data-testid="button-schedule-next" onClick={() => setMonth((value) => value === 8 ? 9 : 8)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><ChevronRight size={18} /></button></div><div className="mb-3 grid grid-cols-7 text-center font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day} className="py-2">{day.slice(0, 3)}</span>)}</div><div className="grid grid-cols-7 gap-1.5">{Array.from({ length: month === 8 ? 4 : 0 }).map((_, index) => <span key={`blank-${index}`} />)}{dates.map((date) => <button key={date} data-testid={`calendar-date-${date}`} onClick={() => setSelected(date)} className={`relative flex aspect-square flex-col items-center justify-center rounded-xl text-sm font-semibold ${selected === date ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}><span>{date}</span><span className={`absolute bottom-2 h-1.5 w-1.5 rounded-full ${isRecycle(date) ? 'bg-accent' : 'bg-secondary'} ${selected === date ? 'opacity-90' : ''}`} /></button>)}</div></section><ScheduleLegend selected={selected} isRecycle={isRecycle} onNotify={onNotify} /></div></div>;
 }
 
 function ScheduleLegend({ selected, isRecycle, onNotify }: { selected: number; isRecycle: (date: number) => boolean; onNotify: (message: string) => void }) {
@@ -313,10 +313,10 @@ function MarketplacePage({ onNotify }: { onNotify: (message: string) => void }) 
   const [type, setType] = useState('PET bottles');
   const [weight, setWeight] = useState('3');
   const [note, setNote] = useState('');
-  const [listings, setListings] = useState([{ title: 'Sorted PET bottles', seller: 'Mina K. · Patan', weight: '5 kg', price: 'NPR 175', time: '12 min ago', color: 'bg-accent/10 text-accent' }, { title: 'Old newspapers & cartons', seller: 'Ramesh T. · Kupondole', weight: '8 kg', price: 'NPR 240', time: '28 min ago', color: 'bg-secondary/25 text-primary' }, { title: 'Glass bottles', seller: 'Nisha B. · Jawalakhel', weight: '3.5 kg', price: 'NPR 120', time: '41 min ago', color: 'bg-primary/10 text-primary' }]);
+  const [listings, setListings] = useState([{ title: 'Sorted PET bottles', seller: 'Community seller · Nearby', weight: '5 kg', price: 'NPR 175', time: '12 min ago', color: 'bg-accent/10 text-accent' }, { title: 'Old newspapers & cartons', seller: 'Community seller · Nearby', weight: '8 kg', price: 'NPR 240', time: '28 min ago', color: 'bg-secondary/25 text-primary' }, { title: 'Glass bottles', seller: 'Community seller · Nearby', weight: '3.5 kg', price: 'NPR 120', time: '41 min ago', color: 'bg-primary/10 text-primary' }]);
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setListings((items) => [{ title: `Sorted ${type.toLowerCase()}`, seller: 'You · Lalitpur', weight: `${weight} kg`, price: `NPR ${Math.round(Number(weight) * 35)}`, time: 'just now', color: 'bg-primary/10 text-primary' }, ...items]);
+    setListings((items) => [{ title: `Sorted ${type.toLowerCase()}`, seller: 'You · Nearby', weight: `${weight} kg`, price: `NPR ${Math.round(Number(weight) * 35)}`, time: 'just now', color: 'bg-primary/10 text-primary' }, ...items]);
     setSubmitted(true);
     setFormOpen(false);
     onNotify('Your recyclables are now visible to nearby collectors.');
