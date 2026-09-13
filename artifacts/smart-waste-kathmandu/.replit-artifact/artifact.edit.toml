@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Trash Tracker"
+description = "Trash Tracker helps households sort waste, coordinate pickups, and connect with local collectors, with live schedules, reminders, notifications, and an AI segregation scanner."
+version = "1.0.0"
+id = "artifacts/smart-waste-kathmandu"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21142
+
+[services.development]
+run = "pnpm --filter @workspace/smart-waste-kathmandu run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/smart-waste-kathmandu", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/smart-waste-kathmandu/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21142"
+BASE_PATH = "/"

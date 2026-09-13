@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useDetectWaste, type WasteDetectionResponse } from '@workspace/api-client-react';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -45,6 +45,63 @@ const queryClient = new QueryClient();
 type Role = 'household' | 'collector';
 type Page = 'home' | 'schedule' | 'marketplace' | 'requests' | 'scanner';
 type PickupStatus = 'Pending' | 'Accepted' | 'Completed';
+type AppNotification = {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
+};
+type Reminder = {
+  id: string;
+  title: string;
+  dueAt: number;
+};
+
+const remindersStorageKey = 'trash-tracker-reminders';
+
+function formatLongDate(date: Date) {
+  return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(date);
+}
+
+function formatShortDate(date: Date) {
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+}
+
+function formatReminderDate(timestamp: number) {
+  return new Intl.DateTimeFormat('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(timestamp));
+}
+
+function loadReminders(): Reminder[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(remindersStorageKey) ?? '[]');
+    return Array.isArray(stored) ? stored.filter((item): item is Reminder => typeof item?.id === 'string' && typeof item?.title === 'string' && typeof item?.dueAt === 'number' && item.dueAt > Date.now()) : [];
+  } catch {
+    return [];
+  }
+}
+
+function TrashTrackerLogo({ compact = false }: { compact?: boolean }) {
+  return <div className={`flex items-center ${compact ? 'gap-2' : 'gap-3'}`}>
+    <svg aria-hidden="true" viewBox="0 0 48 48" className={compact ? 'h-8 w-8 shrink-0' : 'h-10 w-10 shrink-0'}>
+      <defs>
+        <linearGradient id="trash-tracker-gradient" x1="8" y1="5" x2="40" y2="43" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#F8D15A" />
+          <stop offset="1" stopColor="#F19A4A" />
+        </linearGradient>
+      </defs>
+      <rect width="48" height="48" rx="15" fill="url(#trash-tracker-gradient)" />
+      <path d="M14 19.5h20M19 19.5v-3h10v3M17 22l1.4 16h11.2L31 22" fill="none" stroke="#123E37" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13.5 16.5A13 13 0 0 1 34 13.8" fill="none" stroke="#123E37" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="m33.3 10.8 1.2 3.8-3.9-.5" fill="none" stroke="#123E37" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M34.5 31.5A13 13 0 0 1 14 34.2" fill="none" stroke="#123E37" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="m14.7 37.2-1.2-3.8 3.9.5" fill="none" stroke="#123E37" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="24" cy="29" r="2" fill="#F8D15A" stroke="#123E37" strokeWidth="1.5" />
+    </svg>
+    {!compact && <div><p className="font-mono text-[10px] font-bold uppercase tracking-[.18em] text-secondary">TT / 26</p><p className="font-semibold leading-tight">Trash<br />Tracker</p></div>}
+  </div>;
+}
 
 type Request = {
   id: number;
@@ -85,6 +142,8 @@ function App() {
   const [requests, setRequests] = useState<Request[]>(initialRequests);
   const [collectorPickups, setCollectorPickups] = useState<CollectorPickup[]>(initialCollectorPickups);
   const [toast, setToast] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>(loadReminders);
 
   useEffect(() => {
     if (!toast) return;
@@ -92,7 +151,62 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const notify = (message: string) => setToast(message);
+  useEffect(() => {
+    window.localStorage.setItem(remindersStorageKey, JSON.stringify(reminders));
+  }, [reminders]);
+
+  const notify = useCallback((message: string, title = 'Trash Tracker') => {
+    setToast(message);
+    setNotifications((items) => [{
+      id: `${Date.now()}-${Math.random()}`,
+      title,
+      message,
+      time: 'Just now',
+      read: false,
+    }, ...items].slice(0, 12));
+
+    if ('Notification' in window && window.Notification.permission === 'granted') {
+      new window.Notification(title, { body: message, icon: '/favicon.svg' });
+    }
+  }, []);
+
+  useEffect(() => {
+    const checkReminders = () => {
+      const dueReminders = reminders.filter((reminder) => reminder.dueAt <= Date.now());
+      if (dueReminders.length === 0) return;
+      dueReminders.forEach((reminder) => notify(`Reminder: ${reminder.title} is due now.`, 'Pickup reminder'));
+      const dueIds = new Set(dueReminders.map((reminder) => reminder.id));
+      setReminders((items) => items.filter((item) => !dueIds.has(item.id)));
+    };
+    checkReminders();
+    const interval = window.setInterval(checkReminders, 1000);
+    return () => window.clearInterval(interval);
+  }, [notify, reminders]);
+
+  const requestBrowserNotifications = useCallback(async () => {
+    if ('Notification' in window && window.Notification.permission === 'default') {
+      await window.Notification.requestPermission();
+    }
+  }, []);
+
+  const addReminder = useCallback((title: string, dueAt: number) => {
+    void requestBrowserNotifications();
+    if (reminders.some((item) => item.title === title && Math.abs(item.dueAt - dueAt) < 60_000)) {
+      notify('That reminder is already set.', 'Reminder');
+      return;
+    }
+    notify(`Reminder set for ${formatReminderDate(dueAt)}.`, 'Reminder');
+    setReminders((items) => [...items, { id: `${Date.now()}-${Math.random()}`, title, dueAt }]);
+  }, [notify, reminders, requestBrowserNotifications]);
+
+  const markNotificationsRead = useCallback(() => {
+    setNotifications((items) => items.map((item) => ({ ...item, read: true })));
+  }, []);
+
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
   const handleRoleChange = (nextRole: Role) => {
     setRole(nextRole);
     setPage('home');
@@ -109,14 +223,20 @@ function App() {
           <div className="grain app-shell min-h-[100dvh] text-foreground">
             <DesktopSidebar page={page} role={role} onNavigate={handleNav} onRoleChange={handleRoleChange} />
             <div className="min-h-[100dvh] lg:pl-[252px]">
-              <TopBar role={role} onRoleChange={handleRoleChange} />
+              <TopBar
+                role={role}
+                onRoleChange={handleRoleChange}
+                notifications={notifications}
+                onNotificationsOpen={markNotificationsRead}
+                onClearNotifications={clearNotifications}
+              />
               <main className="mx-auto max-w-[1450px] px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-12 lg:pt-8">
-                {page === 'home' && role === 'household' && <HouseholdHome requests={requests} onNavigate={handleNav} onNotify={notify} />}
+                {page === 'home' && role === 'household' && <HouseholdHome requests={requests} onNavigate={handleNav} onNotify={notify} onSetReminder={addReminder} />}
                 {page === 'home' && role === 'collector' && <CollectorHome pickups={collectorPickups} onAccept={(id) => {
                   setCollectorPickups((items) => items.map((item) => item.id === id ? { ...item, status: 'Accepted' } : item));
                   notify('Pickup accepted. The household has been notified.');
                 }} onNavigate={handleNav} />}
-                {page === 'schedule' && <SchedulePage onNotify={notify} />}
+                {page === 'schedule' && <SchedulePage onNotify={notify} onSetReminder={addReminder} />}
                 {page === 'marketplace' && <MarketplacePage onNotify={notify} />}
                 {page === 'requests' && <RequestsPage requests={requests} onUpdate={(id, status) => setRequests((items) => items.map((item) => item.id === id ? { ...item, status } : item))} onNotify={notify} />}
                 {page === 'scanner' && <ScannerPage onNotify={notify} />}
@@ -136,8 +256,7 @@ function DesktopSidebar({ page, role, onNavigate, onRoleChange }: { page: Page; 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[252px] flex-col bg-sidebar px-4 py-5 text-sidebar-foreground lg:flex">
       <div className="mb-9 flex items-center gap-3 px-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-secondary text-primary"><Recycle size={22} strokeWidth={2.4} /></div>
-        <div><p className="font-mono text-[10px] font-bold uppercase tracking-[.18em] text-secondary">TT / 24</p><p className="font-semibold leading-tight">Trash<br />Tracker</p></div>
+        <TrashTrackerLogo />
       </div>
       <div className="mb-5 rounded-2xl border border-sidebar-border bg-sidebar-accent p-1.5">
         <div className="grid grid-cols-2 gap-1">
@@ -164,11 +283,19 @@ function DesktopSidebar({ page, role, onNavigate, onRoleChange }: { page: Page; 
   );
 }
 
-function TopBar({ role, onRoleChange }: { role: Role; onRoleChange: (role: Role) => void }) {
+function TopBar({ role, onRoleChange, notifications, onNotificationsOpen, onClearNotifications }: { role: Role; onRoleChange: (role: Role) => void; notifications: AppNotification[]; onNotificationsOpen: () => void; onClearNotifications: () => void }) {
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const unreadCount = notifications.filter((notification) => !notification.read).length;
+  const toggleNotifications = () => {
+    const opening = !notificationOpen;
+    setNotificationOpen(opening);
+    if (opening) onNotificationsOpen();
+  };
+
   return (
     <header className="sticky top-0 z-20 flex h-[73px] items-center justify-between border-b border-border/80 bg-background/90 px-4 backdrop-blur-md sm:px-6 lg:px-10">
       <div className="flex items-center gap-3">
-         <div className="lg:hidden"><p className="font-mono text-[9px] font-bold uppercase tracking-[.16em] text-primary">TT / 24</p><p className="font-semibold leading-none">Trash Tracker</p></div>
+         <div className="lg:hidden"><TrashTrackerLogo compact /></div>
          <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex"><MapPin size={16} className="text-accent" /><span>Your local area</span><span className="text-border">/</span><span className="font-medium capitalize text-foreground">{role} workspace</span></div>
       </div>
       <div className="flex items-center gap-2 sm:gap-4">
@@ -176,11 +303,26 @@ function TopBar({ role, onRoleChange }: { role: Role; onRoleChange: (role: Role)
           <RoleButton active={role === 'household'} icon={Home} label="Home" onClick={() => onRoleChange('household')} />
           <RoleButton active={role === 'collector'} icon={Truck} label="Collect" onClick={() => onRoleChange('collector')} />
         </div>
-        <button data-testid="button-notifications" aria-label="Notifications" className="relative rounded-xl border border-border bg-card p-2.5 text-muted-foreground hover:border-primary hover:text-primary"><Bell size={18} /><span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" /></button>
+        <div className="relative">
+          <button data-testid="button-notifications" aria-label="Notifications" aria-expanded={notificationOpen} onClick={toggleNotifications} className={`relative rounded-xl border border-border bg-card p-2.5 text-muted-foreground hover:border-primary hover:text-primary ${notificationOpen ? 'border-primary text-primary' : ''}`}><Bell size={18} />{unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 font-mono text-[9px] font-bold text-accent-foreground">{unreadCount > 9 ? '9+' : unreadCount}</span>}</button>
+          {notificationOpen && <NotificationPanel notifications={notifications} onClear={onClearNotifications} />}
+        </div>
          <div className="hidden items-center gap-2 sm:flex"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">CM</div><div className="leading-tight"><p className="text-xs font-semibold">Community Member</p><p className="text-[10px] text-muted-foreground">Your local area</p></div></div>
       </div>
     </header>
   );
+}
+
+function NotificationPanel({ notifications, onClear }: { notifications: AppNotification[]; onClear: () => void }) {
+  return <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+    <div className="flex items-center justify-between border-b border-border px-4 py-3">
+      <div><p className="font-bold">Notifications</p><p className="text-[11px] text-muted-foreground">Pickup updates and reminders</p></div>
+      {notifications.length > 0 && <button data-testid="button-clear-notifications" onClick={onClear} className="text-xs font-bold text-primary hover:text-accent">Clear all</button>}
+    </div>
+    <div className="max-h-80 overflow-y-auto">
+      {notifications.length === 0 ? <div className="px-4 py-10 text-center"><Bell size={22} className="mx-auto text-muted-foreground/50" /><p className="mt-3 text-sm font-semibold">You’re all caught up</p><p className="mt-1 text-xs text-muted-foreground">New pickup activity will appear here.</p></div> : notifications.map((notification) => <div key={notification.id} className="flex gap-3 border-b border-border/70 px-4 py-3 last:border-0"><div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary/20 text-primary"><Bell size={15} /></div><div className="min-w-0"><p className="text-sm font-bold">{notification.title}</p><p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{notification.message}</p><p className="mt-1 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/70">{notification.time}</p></div></div>)}
+    </div>
+  </div>;
 }
 
 function RoleButton({ active, icon: Icon, label, onClick, dark = false }: { active: boolean; icon: typeof Home; label: string; onClick: () => void; dark?: boolean }) {
@@ -198,11 +340,11 @@ function PageHeading({ eyebrow, title, description, action }: { eyebrow: string;
   return <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="mb-2 flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[.2em] text-primary"><span className="h-1.5 w-1.5 rounded-full bg-secondary" />{eyebrow}</p><h1 className="text-[clamp(1.75rem,4vw,2.7rem)] font-bold tracking-[-.045em] text-foreground">{title}</h1><p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">{description}</p></div>{action}</div>;
 }
 
-function HouseholdHome({ requests, onNavigate, onNotify }: { requests: Request[]; onNavigate: (page: Page) => void; onNotify: (message: string) => void }) {
+function HouseholdHome({ requests, onNavigate, onNotify, onSetReminder }: { requests: Request[]; onNavigate: (page: Page) => void; onNotify: (message: string) => void; onSetReminder: (title: string, dueAt: number) => void }) {
   return <div className="rise-in">
-    <PageHeading eyebrow="Wednesday · 28 August 2024" title="Good morning, neighbor." description="A little sorting today keeps our shared streets healthier tomorrow." action={<button data-testid="button-new-pickup" onClick={() => onNavigate('marketplace')} className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-md shadow-primary/15 hover:-translate-y-0.5 hover:bg-primary/90"><Plus size={17} />List recyclables</button>} />
+    <PageHeading eyebrow={formatLongDate(new Date())} title="Good morning, neighbor." description="A little sorting today keeps our shared streets healthier tomorrow." action={<button data-testid="button-new-pickup" onClick={() => onNavigate('marketplace')} className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-md shadow-primary/15 hover:-translate-y-0.5 hover:bg-primary/90"><Plus size={17} />List recyclables</button>} />
     <div className="grid gap-4 lg:grid-cols-[1.3fr_.7fr]">
-      <PickupHero onNotify={onNotify} />
+      <PickupHero onNotify={onNotify} onSetReminder={onSetReminder} />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
         <StatCard icon={Recycle} label="Diverted this month" value="18.4 kg" detail="+3.2 kg from July" accent="yellow" />
         <StatCard icon={Coins} label="Community value" value="NPR 740" detail="earned by nearby collectors" accent="coral" />
@@ -216,7 +358,7 @@ function HouseholdHome({ requests, onNavigate, onNotify }: { requests: Request[]
   </div>;
 }
 
-function PickupHero({ onNotify }: { onNotify: (message: string) => void }) {
+function PickupHero({ onNotify, onSetReminder }: { onNotify: (message: string) => void; onSetReminder: (title: string, dueAt: number) => void }) {
   const [reminded, setReminded] = useState(false);
   const [now, setNow] = useState(() => new Date());
 
@@ -239,7 +381,7 @@ function PickupHero({ onNotify }: { onNotify: (message: string) => void }) {
     <div className="relative">
       <div className="mb-9 flex items-start justify-between"><div><p className="mb-2 flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-[.17em] text-secondary"><span className="h-2 w-2 rounded-full bg-secondary" />Municipal collection</p><h2 className="max-w-sm text-2xl font-bold tracking-[-.04em] sm:text-3xl">Recyclables are up next.</h2></div><Truck size={33} className="text-secondary/80" /></div>
        <div className="flex flex-wrap items-end justify-between gap-5"><div><p className="font-mono text-[11px] uppercase tracking-wider text-primary-foreground/55">Next pickup in</p><div className="mt-1 flex items-baseline gap-2"><span className="font-mono text-4xl font-bold tracking-[-.08em]">{hoursUntilPickup}:{minutesUntilPickup}:{secondsDisplay}</span><span className="text-sm text-primary-foreground/55">hrs</span></div></div><div className="text-left sm:text-right"><p className="font-mono text-[11px] uppercase tracking-wider text-primary-foreground/55">{pickupDay} · 4:30–6:00 PM</p><p className="mt-1 text-sm font-semibold">Leave sorted bags outside</p></div></div>
-       <div className="mt-7 flex flex-col gap-3 border-t border-primary-foreground/15 pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="flex items-center gap-2 text-xs text-primary-foreground/70"><MapPin size={14} />Local municipal collection zone</p><button data-testid="button-pickup-reminder" onClick={() => { setReminded(true); onNotify('Pickup reminder set for 4:00 PM.'); }} className="flex items-center justify-center gap-2 rounded-lg bg-primary-foreground/10 px-3 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary-foreground/20">{reminded ? <Check size={14} /> : <Bell size={14} />}{reminded ? 'Reminder set' : 'Set a reminder'}</button></div>
+       <div className="mt-7 flex flex-col gap-3 border-t border-primary-foreground/15 pt-4 sm:flex-row sm:items-center sm:justify-between"><p className="flex items-center gap-2 text-xs text-primary-foreground/70"><MapPin size={14} />Local municipal collection zone</p><button data-testid="button-pickup-reminder" onClick={() => { setReminded(true); onSetReminder('Municipal recyclable pickup', nextPickup.getTime()); }} className="flex items-center justify-center gap-2 rounded-lg bg-primary-foreground/10 px-3 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary-foreground/20">{reminded ? <Check size={14} /> : <Bell size={14} />}{reminded ? 'Reminder set' : 'Set a reminder'}</button></div>
     </div>
   </section>;
 }
@@ -249,9 +391,19 @@ function StatCard({ icon: Icon, label, value, detail, accent }: { icon: typeof R
 }
 
 function ScheduleCard({ onNavigate }: { onNavigate: (page: Page) => void }) {
-  const [selected, setSelected] = useState(3);
-  const days = [{ day: 'M', date: 26, type: 'organic' }, { day: 'T', date: 27, type: 'recycle' }, { day: 'W', date: 28, type: 'organic' }, { day: 'T', date: 29, type: 'recycle' }, { day: 'F', date: 30, type: 'organic' }, { day: 'S', date: 31, type: 'recycle' }, { day: 'S', date: 1, type: 'organic' }];
-  return <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6"><div className="mb-5 flex items-start justify-between"><div><p className="font-mono text-[10px] font-bold uppercase tracking-widest text-primary">Your street rhythm</p><h2 className="mt-1 text-lg font-bold">Collection schedule</h2></div><button data-testid="button-view-schedule" onClick={() => onNavigate('schedule')} className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-primary"><ArrowRight size={18} /></button></div><div className="mb-5 flex items-center justify-between"><button data-testid="button-previous-week" className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><ChevronLeft size={17} /></button><span className="text-xs font-semibold">26 Aug — 01 Sep 2024</span><button data-testid="button-next-week" className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><ChevronRight size={17} /></button></div><div className="grid grid-cols-7 gap-1.5">{days.map((item, index) => <button key={`${item.day}-${item.date}`} data-testid={`schedule-day-${item.date}`} onClick={() => setSelected(index)} className={`relative flex flex-col items-center gap-2 rounded-xl py-3 ${selected === index ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}><span className={`font-mono text-[10px] font-bold ${selected === index ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>{item.day}</span><span className="text-sm font-bold">{item.date}</span><span className={`h-2 w-2 rounded-full ${item.type === 'organic' ? selected === index ? 'bg-secondary' : 'bg-secondary' : selected === index ? 'bg-accent' : 'bg-accent'}`} /></button>)}</div><div className="mt-5 flex flex-wrap items-center gap-4 border-t border-border pt-4 text-xs"><span className="flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-secondary" />Organic</span><span className="flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-accent" />Recyclable</span><span className="ml-auto font-semibold text-primary">{days[selected].type === 'organic' ? 'Organic pickup' : 'Recyclable pickup'}</span></div></section>;
+  const today = new Date();
+  const weekStart = new Date(today);
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(today.getDate() - today.getDay());
+  const [selected, setSelected] = useState(today.getDay());
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + index);
+    return { day: new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date).slice(0, 1), date: date.getDate(), type: date.getDate() % 2 === 0 ? 'recycle' : 'organic' };
+  });
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  return <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6"><div className="mb-5 flex items-start justify-between"><div><p className="font-mono text-[10px] font-bold uppercase tracking-widest text-primary">Your street rhythm</p><h2 className="mt-1 text-lg font-bold">Collection schedule</h2></div><button data-testid="button-view-schedule" onClick={() => onNavigate('schedule')} className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-primary"><ArrowRight size={18} /></button></div><div className="mb-5 flex items-center justify-between"><button data-testid="button-previous-week" aria-label="Previous week" className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><ChevronLeft size={17} /></button><span className="text-xs font-semibold">{formatShortDate(weekStart)} — {formatShortDate(weekEnd)}</span><button data-testid="button-next-week" aria-label="Next week" className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"><ChevronRight size={17} /></button></div><div className="grid grid-cols-7 gap-1.5">{days.map((item, index) => <button key={`${item.day}-${item.date}`} data-testid={`schedule-day-${item.date}`} onClick={() => setSelected(index)} className={`relative flex flex-col items-center gap-2 rounded-xl py-3 ${selected === index ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}><span className={`font-mono text-[10px] font-bold ${selected === index ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>{item.day}</span><span className="text-sm font-bold">{item.date}</span><span className={`h-2 w-2 rounded-full ${item.type === 'organic' ? 'bg-secondary' : 'bg-accent'}`} /></button>)}</div><div className="mt-5 flex flex-wrap items-center gap-4 border-t border-border pt-4 text-xs"><span className="flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-secondary" />Organic</span><span className="flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-accent" />Recyclable</span><span className="ml-auto font-semibold text-primary">{days[selected].type === 'organic' ? 'Organic pickup' : 'Recyclable pickup'}</span></div></section>;
 }
 
 function RequestsPreview({ requests, onNavigate }: { requests: Request[]; onNavigate: (page: Page) => void }) {
@@ -277,7 +429,7 @@ function SegregationGuide({ onNotify }: { onNotify: (message: string) => void })
 
 function CollectorHome({ pickups, onAccept, onNavigate }: { pickups: CollectorPickup[]; onAccept: (id: number) => void; onNavigate: (page: Page) => void }) {
   const pending = pickups.filter((pickup) => pickup.status === 'Pending');
-  return <div className="rise-in"><PageHeading eyebrow="Collector route · Wednesday 28 August" title="Good morning, Sita." description="There are sorted materials waiting in your nearby wards." action={<button data-testid="button-open-map" onClick={() => onNavigate('schedule')} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-bold hover:border-primary hover:text-primary"><MapPin size={16} />Open route map</button>} /><div className="mb-5 grid gap-4 sm:grid-cols-3"><CollectorStat label="Available nearby" value={`${pending.length}`} detail="pickup requests" icon={Package} /><CollectorStat label="Today’s earnings" value="NPR 1,240" detail="+NPR 180 vs yesterday" icon={Coins} /><CollectorStat label="Collected this week" value="42.8 kg" detail="across 17 households" icon={Weight} /></div><div className="grid gap-5 xl:grid-cols-[1.25fr_.75fr]"><section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6"><div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-start"><div><p className="font-mono text-[10px] font-bold uppercase tracking-widest text-primary">Live nearby feed</p><h2 className="mt-1 text-lg font-bold">Pickups you can take</h2></div><button data-testid="button-filter-pickups" className="flex items-center gap-2 self-start rounded-lg border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-primary"><ListFilter size={14} /> Filter: All</button></div><div className="grid gap-3">{pickups.map((pickup, index) => <CollectorPickupCard key={pickup.id} pickup={pickup} index={index} onAccept={onAccept} />)}</div>{pending.length === 0 && <EmptyState icon={CheckCircle2} title="All caught up" description="You accepted every nearby pickup. New requests will appear here." />}</section><CollectorTip /></div></div>;
+  return <div className="rise-in"><PageHeading eyebrow={`Collector route · ${formatLongDate(new Date())}`} title="Good morning, collector." description="There are sorted materials waiting in your nearby area." action={<button data-testid="button-open-map" onClick={() => onNavigate('schedule')} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-bold hover:border-primary hover:text-primary"><MapPin size={16} />Open route map</button>} /><div className="mb-5 grid gap-4 sm:grid-cols-3"><CollectorStat label="Available nearby" value={`${pending.length}`} detail="pickup requests" icon={Package} /><CollectorStat label="Today’s earnings" value="NPR 1,240" detail="+NPR 180 vs yesterday" icon={Coins} /><CollectorStat label="Collected this week" value="42.8 kg" detail="across 17 households" icon={Weight} /></div><div className="grid gap-5 xl:grid-cols-[1.25fr_.75fr]"><section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6"><div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-start"><div><p className="font-mono text-[10px] font-bold uppercase tracking-widest text-primary">Live nearby feed</p><h2 className="mt-1 text-lg font-bold">Pickups you can take</h2></div><button data-testid="button-filter-pickups" className="flex items-center gap-2 self-start rounded-lg border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-primary"><ListFilter size={14} /> Filter: All</button></div><div className="grid gap-3">{pickups.map((pickup, index) => <CollectorPickupCard key={pickup.id} pickup={pickup} index={index} onAccept={onAccept} />)}</div>{pending.length === 0 && <EmptyState icon={CheckCircle2} title="All caught up" description="You accepted every nearby pickup. New requests will appear here." />}</section><CollectorTip /></div></div>;
 }
 
 function CollectorStat({ label, value, detail, icon: Icon }: { label: string; value: string; detail: string; icon: typeof Package }) {
@@ -293,18 +445,28 @@ function CollectorTip() {
   return <aside className="rounded-2xl bg-primary p-6 text-primary-foreground shadow-lg shadow-primary/10"><div className="mb-10 flex items-center justify-between"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-primary"><Sparkles size={19} /></div><span className="font-mono text-[10px] font-bold uppercase tracking-widest text-secondary">Route tip 04</span></div><h2 className="max-w-xs text-2xl font-bold leading-tight tracking-[-.04em]">Clean, dry, and sorted pays better.</h2><p className="mt-3 text-sm leading-relaxed text-primary-foreground/70">Households who separate by type save you time at the door. Give them a quick thank-you — it keeps the loop going.</p><div className="mt-7 flex items-center gap-2 border-t border-primary-foreground/15 pt-4 text-xs text-primary-foreground/65"><ShieldCheck size={15} className="text-secondary" />Your safety comes first</div></aside>;
 }
 
-function SchedulePage({ onNotify }: { onNotify: (message: string) => void }) {
-  const [month, setMonth] = useState(8);
-  const [selected, setSelected] = useState(28);
-  const months = ['August', 'September'];
-  const dates = Array.from({ length: month === 8 ? 31 : 30 }, (_, index) => index + 1);
+function SchedulePage({ onNotify, onSetReminder }: { onNotify: (message: string) => void; onSetReminder: (title: string, dueAt: number) => void }) {
+  const today = new Date();
+  const [month, setMonth] = useState(today.getMonth());
+  const [selected, setSelected] = useState(today.getDate());
+  const monthDate = new Date(today.getFullYear(), month, 1);
+  const monthName = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(monthDate);
+  const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+  const firstDay = monthDate.getDay();
+  const safeSelected = Math.min(selected, daysInMonth);
+  const dates = Array.from({ length: daysInMonth }, (_, index) => index + 1);
   const isRecycle = (date: number) => date % 2 === 0;
-  return <div className="rise-in"><PageHeading eyebrow="Plan ahead" title="Your collection schedule." description="A simple rhythm for your local area. Put bags out by 7:00 AM on your pickup day." action={<button data-testid="button-calendar-sync" onClick={() => onNotify('Calendar link copied. Add it to your preferred calendar app.')} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-bold hover:border-primary hover:text-primary"><CalendarDays size={16} />Add to calendar</button>} /><div className="grid gap-5 xl:grid-cols-[1fr_.7fr]"><section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7"><div className="mb-6 flex items-center justify-between"><button data-testid="button-schedule-prev" onClick={() => setMonth((value) => value === 8 ? 9 : 8)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><ChevronLeft size={18} /></button><h2 className="font-bold">{months[month === 8 ? 0 : 1]} 2024</h2><button data-testid="button-schedule-next" onClick={() => setMonth((value) => value === 8 ? 9 : 8)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><ChevronRight size={18} /></button></div><div className="mb-3 grid grid-cols-7 text-center font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day} className="py-2">{day.slice(0, 3)}</span>)}</div><div className="grid grid-cols-7 gap-1.5">{Array.from({ length: month === 8 ? 4 : 0 }).map((_, index) => <span key={`blank-${index}`} />)}{dates.map((date) => <button key={date} data-testid={`calendar-date-${date}`} onClick={() => setSelected(date)} className={`relative flex aspect-square flex-col items-center justify-center rounded-xl text-sm font-semibold ${selected === date ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}><span>{date}</span><span className={`absolute bottom-2 h-1.5 w-1.5 rounded-full ${isRecycle(date) ? 'bg-accent' : 'bg-secondary'} ${selected === date ? 'opacity-90' : ''}`} /></button>)}</div></section><ScheduleLegend selected={selected} isRecycle={isRecycle} onNotify={onNotify} /></div></div>;
+  const changeMonth = (direction: number) => {
+    setMonth((value) => value + direction);
+    setSelected(1);
+  };
+  return <div className="rise-in"><PageHeading eyebrow={`Plan ahead · ${formatLongDate(today)}`} title="Your collection schedule." description="A simple rhythm for your local area. Put bags out by 7:00 AM on your pickup day." action={<button data-testid="button-calendar-sync" onClick={() => onNotify('Calendar link copied. Add it to your preferred calendar app.')} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-bold hover:border-primary hover:text-primary"><CalendarDays size={16} />Add to calendar</button>} /><div className="grid gap-5 xl:grid-cols-[1fr_.7fr]"><section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-7"><div className="mb-6 flex items-center justify-between"><button data-testid="button-schedule-prev" onClick={() => changeMonth(-1)} aria-label="Previous month" className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><ChevronLeft size={18} /></button><h2 className="font-bold">{monthName} {monthDate.getFullYear()}</h2><button data-testid="button-schedule-next" onClick={() => changeMonth(1)} aria-label="Next month" className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><ChevronRight size={18} /></button></div><div className="mb-3 grid grid-cols-7 text-center font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <span key={day} className="py-2">{day.slice(0, 3)}</span>)}</div><div className="grid grid-cols-7 gap-1.5">{Array.from({ length: firstDay }).map((_, index) => <span key={`blank-${index}`} />)}{dates.map((date) => <button key={date} data-testid={`calendar-date-${date}`} onClick={() => setSelected(date)} className={`relative flex aspect-square flex-col items-center justify-center rounded-xl text-sm font-semibold ${safeSelected === date ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}><span>{date}</span><span className={`absolute bottom-2 h-1.5 w-1.5 rounded-full ${isRecycle(date) ? 'bg-accent' : 'bg-secondary'} ${safeSelected === date ? 'opacity-90' : ''}`} /></button>)}</div></section><ScheduleLegend selected={safeSelected} monthDate={monthDate} isRecycle={isRecycle} onSetReminder={onSetReminder} /></div></div>;
 }
 
-function ScheduleLegend({ selected, isRecycle, onNotify }: { selected: number; isRecycle: (date: number) => boolean; onNotify: (message: string) => void }) {
+function ScheduleLegend({ selected, monthDate, isRecycle, onSetReminder }: { selected: number; monthDate: Date; isRecycle: (date: number) => boolean; onSetReminder: (title: string, dueAt: number) => void }) {
   const recycle = isRecycle(selected);
-  return <div className="space-y-5"><div className={`rounded-2xl p-6 ${recycle ? 'bg-accent' : 'bg-primary'} text-primary-foreground`}><p className="font-mono text-[10px] font-bold uppercase tracking-widest text-primary-foreground/60">Selected day · Aug {selected}</p><div className="mt-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-foreground/10">{recycle ? <Recycle size={24} /> : <Leaf size={24} />}</div><h2 className="mt-5 text-2xl font-bold">{recycle ? 'Recyclable pickup' : 'Organic pickup'}</h2><p className="mt-2 text-sm leading-relaxed text-primary-foreground/70">{recycle ? 'Clean, dry materials like paper, plastic, metal, and glass.' : 'Kitchen scraps and garden waste for a healthier soil cycle.'}</p><button data-testid="button-schedule-reminder" onClick={() => onNotify(`Reminder set for ${recycle ? 'recyclable' : 'organic'} pickup.`)} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary-foreground/10 px-4 py-3 text-sm font-bold hover:bg-primary-foreground/20"><Bell size={16} />Set reminder</button></div><div className="rounded-2xl border border-border bg-card p-5 shadow-sm"><p className="mb-4 font-mono text-[10px] font-bold uppercase tracking-widest text-primary">What to put out</p><div className="space-y-3 text-sm"><p className="flex items-center gap-3"><CheckCircle2 size={17} className="text-primary" />Tie bags securely</p><p className="flex items-center gap-3"><CheckCircle2 size={17} className="text-primary" />Keep materials dry</p><p className="flex items-center gap-3"><CheckCircle2 size={17} className="text-primary" />Place by 7:00 AM</p></div></div></div>;
+  const dueAt = new Date(monthDate.getFullYear(), monthDate.getMonth(), selected, 7, 0, 0).getTime();
+  return <div className="space-y-5"><div className={`rounded-2xl p-6 ${recycle ? 'bg-accent' : 'bg-primary'} text-primary-foreground`}><p className="font-mono text-[10px] font-bold uppercase tracking-widest text-primary-foreground/60">Selected day · {formatShortDate(new Date(monthDate.getFullYear(), monthDate.getMonth(), selected))}</p><div className="mt-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-foreground/10">{recycle ? <Recycle size={24} /> : <Leaf size={24} />}</div><h2 className="mt-5 text-2xl font-bold">{recycle ? 'Recyclable pickup' : 'Organic pickup'}</h2><p className="mt-2 text-sm leading-relaxed text-primary-foreground/70">{recycle ? 'Clean, dry materials like paper, plastic, metal, and glass.' : 'Kitchen scraps and garden waste for a healthier soil cycle.'}</p><button data-testid="button-schedule-reminder" onClick={() => onSetReminder(`${recycle ? 'Recyclable' : 'Organic'} pickup`, dueAt)} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary-foreground/10 px-4 py-3 text-sm font-bold hover:bg-primary-foreground/20"><Bell size={16} />Set reminder</button></div><div className="rounded-2xl border border-border bg-card p-5 shadow-sm"><p className="mb-4 font-mono text-[10px] font-bold uppercase tracking-widest text-primary">What to put out</p><div className="space-y-3 text-sm"><p className="flex items-center gap-3"><CheckCircle2 size={17} className="text-primary" />Tie bags securely</p><p className="flex items-center gap-3"><CheckCircle2 size={17} className="text-primary" />Keep materials dry</p><p className="flex items-center gap-3"><CheckCircle2 size={17} className="text-primary" />Place by 7:00 AM</p></div></div></div>;
 }
 
 function MarketplacePage({ onNotify }: { onNotify: (message: string) => void }) {
